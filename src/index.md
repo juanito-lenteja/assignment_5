@@ -339,6 +339,9 @@ function usCircuitMap(data, {width}) {
       (a, b) => d3.descending(a.raceCount, b.raceCount)
     );
 
+    const pointLabel = (d) =>
+      `${d.name}, ${d.location}. Races: ${d.raceCount}. Years: ${d.firstRace ?? "—"}–${d.lastRace ?? "—"}.`;
+
     const points = pointsG
       .selectAll("circle")
       .data(pointData, d => d.circuitId);
@@ -352,6 +355,8 @@ function usCircuitMap(data, {width}) {
         .attr("stroke", "black")
         .attr("stroke-width", 1.5)
         .attr("cursor", "pointer")
+        .attr("role", "img")
+        .attr("tabindex", 0)
         .style("pointer-events", "all")
         .on("mouseenter", showTooltip)
         .on("mousemove", showTooltip)
@@ -359,14 +364,18 @@ function usCircuitMap(data, {width}) {
         .on("click", (event, d) => {
           event.stopPropagation();
           clickedPoint(event, d)
-        }),
+        })
+        .call((enter) => enter.append("title")),
 
       update => update,
 
       exit => exit.remove()
     )
+    .attr("aria-label", pointLabel)
     .attr("fill-opacity", d => d.raceCount === 0 ? 0.3 : 0.85)
-    .attr("stroke-dasharray", d => d.raceCount === 0 ? "0.5, 1" : "none");
+    .attr("stroke-dasharray", d => d.raceCount === 0 ? "0.5, 1" : "none")
+    .select("title")
+    .text(pointLabel);
 
     pointsG.selectAll("circle")
       .data(pointData, d => d.circuitId)
