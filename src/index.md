@@ -162,6 +162,20 @@ const maxRaceCount = d3.max(globalRacesByCircuit.values(), d => d.raceCount) ?? 
 ```
 
 ```js
+const yearlyRaceWindow = d3.range(
+  d3.min(usaRaces, (d) => d.year),
+  d3.max(usaRaces, (d) => d.year) + 1
+).map((year) => {
+  const start = new Date(Date.UTC(year - 10, 0, 1));
+  const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  return {
+    year,
+    raceCount: usaRaces.filter((d) => d.raceDate >= start && d.raceDate <= end).length
+  };
+});
+```
+
+```js
 const selectedCircuit = selectedCircuitId == null
   ? null
   : usaCircuitRows.find((d) => d.circuitId === selectedCircuitId);
@@ -219,6 +233,14 @@ This map shows the U.S. circuits and .
         : resize((width) => historicCircuitSummary(selectedCircuitSummary, {width}))}
     </div>
   </div>
+  <br>
+</div>
+
+
+## Non-interactive visualization for comparison 
+
+<div class="card">
+  ${resize((width) => Plot.plot(nonInteractivePlot))}
 </div>
 
 
@@ -437,6 +459,52 @@ function historicCircuitSummary(circuit, {width}) {
 }
 ```
 
+
+```js
+  const nonInteractivePlot = {
+    title: "Total U.S. races in trailing 10-year window",
+    width,
+    height: 320,
+    marginLeft: 56,
+    marginRight: 24,
+    marginBottom: 42,
+    style: {
+      background: "transparent",
+      color: "#e5e7eb"
+    },
+    x: {
+      label: "Year (with 10 year sliding window)",
+      tickFormat: "d",
+      ticks: 10,
+      grid: false,
+      tickSize: 6,
+      stroke: "#cbd5e1",
+      tickStroke: "#cbd5e1",
+      labelArrow: false
+    },
+    y: {
+      label: "Total U.S. races",
+      grid: true,
+      tickSize: 0,
+      stroke: "#cbd5e1",
+      tickStroke: "#cbd5e1",
+      gridStroke: "#64748b",
+      gridStrokeOpacity: 0.45,
+      labelArrow: false
+    },
+    marks: [
+      Plot.ruleY([0], {stroke: "#cbd5e1"}),
+      Plot.lineY(yearlyRaceWindow, {
+        x: "year",
+        y: "raceCount",
+        stroke: "#f97316",
+        strokeWidth: 3,
+        curve: "linear",
+        tip: true
+      })
+    ]
+  }
+```
 
 
 <style>
