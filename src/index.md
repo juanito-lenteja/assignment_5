@@ -17,7 +17,16 @@ const us = await d3.json("https://cdn.jsdelivr.net/npm/us-atlas@1/us/10m.json");
 ```
 
 ```js
-const scrubberTimeStep = 300
+const scrubberTimeStep = 300;
+```
+
+```js
+const selectedCircuitId = Mutable(null);
+
+function clickedPoint(event, d) {
+  
+  selectedCircuitId.value = d == null ? null : d.circuitId;
+}
 ```
 
 ```js
@@ -43,7 +52,8 @@ const usaRaces = races
 const scrubberDates = Array
   .from(new Set(usaRaces.map((d) => +d.raceDate)))
   .sort(d3.ascending)
-  .map((d) => new Date(d));
+  .map((d) => new Date(d)
+);
 const dateFormat = d3.utcFormat("%Y %b %-d");
 ```
 
@@ -149,7 +159,29 @@ const usaCircuits = usaCircuitRows
   .sort((a, b) => d3.descending(a.raceCount, b.raceCount) || d3.ascending(a.name, b.name));
 
 const maxRaceCount = d3.max(globalRacesByCircuit.values(), d => d.raceCount) ?? 0; // global max
-console.log(maxRaceCount)
+```
+
+```js
+const selectedCircuit = selectedCircuitId == null
+  ? null
+  : usaCircuitRows.find((d) => d.circuitId === selectedCircuitId);
+
+const selectedHistoricRaces = selectedCircuit == null
+  ? []
+  : usaRaces
+      .filter((d) => d.circuitId === selectedCircuit.circuitId)
+      .sort((a, b) => d3.ascending(a.raceDate, b.raceDate));
+
+const selectedCircuitSummary = selectedCircuit == null
+  ? null
+  : {
+      ...selectedCircuit,
+      raceCount: selectedHistoricRaces.length,
+      firstRace: d3.min(selectedHistoricRaces, (d) => d.year) ?? null,
+      lastRace: d3.max(selectedHistoricRaces, (d) => d.year) ?? null,
+      firstDate: d3.min(selectedHistoricRaces, (d) => d.raceDate) ?? null,
+      lastDate: d3.max(selectedHistoricRaces, (d) => d.raceDate) ?? null
+    };
 ```
 
 # USA Formula 1 circuits
@@ -173,7 +205,7 @@ This map shows the U.S. circuits and .
       <span class="big">${usaCircuits.length}</span>
     </div> -->
     <div class="card stat-card">
-      <h2>Total U.S. races</h2>
+      <h2>Total U.S. races (<strong>${dateFormat(windowStart)} - <strong>${dateFormat(selectedDate)})</h2>
       <span class="big">${d3.sum(usaCircuits, (d) => d.raceCount)}</span>
     </div>
     <div class="card stat-card">
@@ -182,7 +214,9 @@ This map shows the U.S. circuits and .
     </div>
     <div class="card selected-circuit-card">
       <h2>Historic data of selected circuit</h2>
-      <p class="muted">Reserved for a clicked-circuit SVG summary.</p>
+      ${selectedCircuitSummary == null
+        ? html`<p class="muted">Click on a circuit to see historical data</p>`
+        : resize((width) => historicCircuitSummary(selectedCircuitSummary, {width}))}
     </div>
   </div>
 </div>
@@ -205,6 +239,15 @@ function usCircuitMap(data, {width}) {
   const mapProjection = d3.geoIdentity().fitSize([width, height], lower48);
   const path = d3.geoPath(mapProjection);
 
+  svg.append("text")
+    .attr("x", width/3.25)
+    .attr("y", 20)
+    .attr("font-size", 16)
+    .attr("font-weight", 700)
+    .attr("fill", "currentColor")
+    .text(`Races starting on ${dateFormat(windowStart)} through ${dateFormat(selectedDate)}`)
+
+
   const radius = d3.scaleLinear()
     .domain([0, 1, maxRaceCount ** 2])
     .range([3, 6, 80]);
@@ -218,7 +261,56 @@ function usCircuitMap(data, {width}) {
     .attr("stroke-width", 0.75)
     .attr("d", path);
 
-  const pointsG = svg.append("g");
+  const pointsG = svg.append("g");  // render before
+  const tooltip = svg.append("g")
+    .attr("display", "none")
+    .attr("pointer-events", "none");
+
+  const tooltipBox = tooltip.append("rect")
+    .attr("rx", 6)
+    .attr("ry", 6)
+    .attr("fill", "#111827")
+    .attr("fill-opacity", 0.95)
+    .attr("stroke", "#475569")
+    .attr("stroke-width", 1);
+
+  const tooltipText = tooltip.append("text")
+    .attr("fill", "white")
+    .attr("font-size", 12)
+    .attr("font-family", "var(--sans-serif)");
+
+  function showTooltip(event, d) {
+    const lines = [
+      d.name,
+      d.location,
+      `Races: ${d.raceCount}`,
+      `Years: ${d.firstRace ?? "—"}–${d.lastRace ?? "—"}`
+    ];
+
+    tooltipText.selectAll("tspan")
+      .data(lines)
+      .join("tspan")
+      .attr("x", 10)
+      .attr("dy", (_, i) => i === 0 ? "1.1em" : "1.25em") // adds "title"
+      .text((line) => line);
+
+    const {width: boxWidth, height: boxHeight} = tooltipText.node().getBBox();
+    tooltipBox
+      .attr("width", boxWidth + 20)
+      .attr("height", boxHeight + 12);
+
+    const [px, py] = d3.pointer(event, svg.node());
+    const tooltipWidth = boxWidth + 20;
+    const tooltipHeight = boxHeight + 12;
+    const x = Math.max(8, Math.min(width - tooltipWidth - 8, px + 12));
+    const y = Math.max(8, Math.min(height - tooltipHeight - 8, py - tooltipHeight - 12));
+
+    tooltip.attr("transform", `translate(${x},${y})`).attr("display", null);
+  }
+
+  function hideTooltip() {
+    tooltip.attr("display", "none");
+  }
 
   function renderPoints(data) {
     const pointData = [...data].sort(
@@ -239,21 +331,20 @@ function usCircuitMap(data, {width}) {
         .attr("stroke-width", 1.5)
         .attr("cursor", "pointer")
         .style("pointer-events", "all")
-        .call(enter => enter.append("title")),
+        .on("mouseenter", showTooltip)
+        .on("mousemove", showTooltip)
+        .on("mouseleave", hideTooltip)
+        .on("click", (event, d) => {
+          event.stopPropagation();
+          clickedPoint(event, d)
+        }),
 
       update => update,
 
       exit => exit.remove()
     )
     .attr("fill-opacity", d => d.raceCount === 0 ? 0.3 : 0.85)
-    .attr("stroke-dasharray", d => d.raceCount === 0 ? "0.5, 1" : "none")
-    .select("title")
-    .text(d =>
-      `${d.name}
-      ${d.location}
-      Races: ${d.raceCount}
-      Years: ${d.firstRace ?? "—"}–${d.lastRace ?? "—"}`
-    );
+    .attr("stroke-dasharray", d => d.raceCount === 0 ? "0.5, 1" : "none");
 
     pointsG.selectAll("circle")
       .data(pointData, d => d.circuitId)
@@ -263,6 +354,85 @@ function usCircuitMap(data, {width}) {
 
   renderPoints(data);
 
+  svg.on("click", (event, d) => clickedPoint(null, null))
+
+  return svg.node();
+}
+```
+
+```js
+function historicCircuitSummary(circuit, {width}) {
+  const height = 242;
+  const svg = d3.create("svg")
+    .attr("viewBox", [0, 0, width, height])
+    .attr("width", width)
+    .attr("height", height)
+    .attr("style", "max-width: 100%; height: auto;");
+
+  svg.append("text")
+    .attr("x", 0)
+    .attr("y", 20)
+    .attr("font-size", 16)
+    .attr("font-weight", 700)
+    .attr("fill", "currentColor")
+    .text(circuit.name);
+
+  svg.append("text")
+    .attr("x", 0)
+    .attr("y", 42)
+    .attr("font-size", 12)
+    .attr("fill", "var(--theme-foreground-muted)")
+    .text(`${circuit.location}, ${circuit.country}`);
+
+  const stats = [
+    {label: "All-time U.S. races", value: circuit.raceCount},
+    {label: "First race", value: circuit.firstRace ?? "—"},
+    {label: "Most recent race", value: circuit.lastRace ?? "—"}
+  ];
+
+  const cardWidth = Math.max(92, (width - 24) / 3);
+  const cardHeight = 84;
+
+  const stat = svg.append("g")
+    .attr("transform", "translate(0,70)")
+    .selectAll("g")
+    .data(stats)
+    .join("g")
+    .attr("transform", (_, i) => `translate(${i * (cardWidth + 12)},0)`);
+
+  stat.append("rect")
+    .attr("width", cardWidth)
+    .attr("height", cardHeight)
+    .attr("rx", 8)
+    .attr("fill", "#0f172a")
+    .attr("fill-opacity", 0.08)
+    .attr("stroke", "#475569")
+    .attr("stroke-opacity", 0.35);
+
+  stat.append("text")
+    .attr("x", 12)
+    .attr("y", 28)
+    .attr("font-size", 11)
+    .attr("fill", "var(--theme-foreground-muted)")
+    .text((d) => d.label);
+
+  stat.append("text")
+    .attr("x", 12)
+    .attr("y", 62)
+    .attr("font-size", 24)
+    .attr("font-weight", 800)
+    .attr("fill", "currentColor")
+    .text((d) => d.value);
+
+  svg.append("text")
+    .attr("x", 0)
+    .attr("y", 185)
+    .attr("font-size", 12)
+    .attr("fill", "var(--theme-foreground-muted)")
+    .text(circuit.firstDate && circuit.lastDate
+      ? `Historical range: ${dateFormat(circuit.firstDate)} – ${dateFormat(circuit.lastDate)}`
+      : "No historical races in the dataset.");
+
   return svg.node();
 }
 ```
@@ -271,8 +441,9 @@ function usCircuitMap(data, {width}) {
 
 <style>
 .scrubber-control {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 1rem;
   margin-bottom: 0.75rem;
 }
@@ -295,13 +466,14 @@ function usCircuitMap(data, {width}) {
 }
 
 .scrubber-body {
-  flex: 1;
+  min-width: 0;
 }
 
 .scrubber-header {
   display: flex;
   justify-content: space-between;
   font-size: 0.95rem;
+  margin-bottom: 0.4rem;
 }
 
 .scrubber-label {
@@ -334,7 +506,7 @@ function usCircuitMap(data, {width}) {
 }
 
 .selected-circuit-card {
-  min-height: 250px;
+  min-height: 266px;
 }
 
 @media (max-width: 1100px) {
