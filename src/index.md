@@ -220,16 +220,21 @@ The **number of races** during the 10 year interactive sliding window is depicte
 </div>
 
 <div class="map-layout">
-  <div class="card">
-    ${resize((width) => usCircuitMap(usaCircuits, {width}))}  <!-- For window resizing -->
+  <div class="map-column">
+    <div class="card map-card">
+      ${resize((width) => usCircuitMap(usaCircuits, {width}))}  <!-- For window resizing -->
+    </div>
+    <div class="card legend-card">
+      ${raceCircleLegend()}
+    </div>
   </div>
   <div class="sidebar-stack">
     <div class="card stat-card">
-      <h2>Total U.S. races (<strong>${dateFormat(windowStart)} - <strong>${dateFormat(selectedDate)})</h2>
+      <h2>Total U.S. races (<strong>${dateFormat(windowStart)} - ${dateFormat(selectedDate)}</strong>)</h2>
       <span class="big">${d3.sum(usaCircuits, (d) => d.raceCount)}</span>
     </div>
     <div class="card stat-card">
-      <h2>Most-used circuit (<strong>${dateFormat(windowStart)} - <strong>${dateFormat(selectedDate)})</h2>
+      <h2>Most-used circuit (<strong>${dateFormat(windowStart)} - ${dateFormat(selectedDate)}</strong>)</h2>
       <span class="big" style="font-size: 1.35rem;">${usaCircuits[0].raceCount > 0 ? usaCircuits[0].name : "None in window"}</span>
     </div>
     <div class="card selected-circuit-card">
@@ -240,9 +245,6 @@ The **number of races** during the 10 year interactive sliding window is depicte
         <p class="muted">Click elsewhere to unselect data</p>
         `
         : resize((width) => historicCircuitSummary(selectedCircuitSummary, {width}))}
-    </div>
-    <div class="card">
-      ${resize((width) => raceCircleLegend({width}))}
     </div>
   </div>
   <br>
@@ -432,7 +434,7 @@ function usCircuitMap(data, {width}) {
 
 
 ```js
-function raceCircleLegend({width}) {
+function raceCircleLegend() {
   const values = [0, 1, 6, 11];
   const radius = raceRadiusScale();
   const items = values.map((value) => ({
@@ -440,27 +442,41 @@ function raceCircleLegend({width}) {
     r: radius(value ** 2)
   }));
   const maxR = d3.max(items, (d) => d.r) ?? 0;
-  const height = Math.max(90, maxR * 2 + 25);
-  const marginX = Math.max(36, maxR + 20);
-  const xTrans = d3.scalePoint()
-    .domain(values)
-    .range([marginX, Math.max(marginX, width - marginX)])
-    .padding(0.7);
-  const circleY = maxR*1.25;
+  const labelWidth = 96;
+  const itemGap = 28;
+  const height = Math.ceil(maxR * 2 + 38);
+  const circleY = maxR + 10;
+  let nextX = labelWidth;
+  for (const item of items) {
+    item.x = nextX + item.r;
+    nextX += item.r * 2 + itemGap;
+  }
+  const legendWidth = nextX - itemGap;
+  const width = Math.ceil(legendWidth);
 
   const svg = d3.create("svg")
     .attr("viewBox", [0, 0, width, height])
     .attr("width", width)
     .attr("height", height)
-    .attr("style", "max-width: 100%; height: auto; display: block; margin-top: 0.5rem;")
+    .attr("style", "max-width: 100%; height: auto; display: block;")
     .attr("aria-label", "Legend for circuit circle sizes by number of races")
     .attr("role", "img");
 
-  const legendItem = svg.append("g")
+  const legend = svg.append("g");
+
+  legend.append("text")
+    .attr("x", 0)
+    .attr("y", circleY + 5)
+    .attr("font-size", "14")
+    .attr("font-weight", "600")
+    .attr("fill", "var(--theme-foreground-muted)")
+    .text("Race count:");
+
+  const legendItem = legend
     .selectAll("g")
     .data(items)
     .join("g")
-    .attr("transform", (d) => `translate(${xTrans(d.value) + 20},0)`);
+    .attr("transform", (d) => `translate(${d.x},0)`);
 
   legendItem.append("circle")
     .attr("cy", circleY)
@@ -477,15 +493,6 @@ function raceCircleLegend({width}) {
     .attr("font-size", 12)
     .attr("fill", "var(--theme-foreground-muted)")
     .text((d) => d.value);
-
-  svg.append("text")
-    .attr("x", 40)
-    .attr("y", circleY + circleY/3 )
-    .attr("text-anchor", "middle")
-    .attr("font-size", "14")
-    .attr("font-weight", "600")
-    .attr("fill", "var(--theme-foreground-muted)")
-    .text("Race count:");
 
   return svg.node();
 }
@@ -669,13 +676,29 @@ function historicCircuitSummary(circuit, {width}) {
 .map-layout {
   display: grid;
   grid-template-columns: minmax(0, 2.1fr) minmax(320px, 0.9fr);
-  gap: 0.75rem;
+  gap: 0.25rem;
   align-items: start;
+}
+
+.map-column {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.map-card {
+  padding-bottom: 0.2rem;
+}
+
+.legend-card {
+  justify-self: left;
+  width: fit-content;
+  max-width: 100%;
+  padding-block: 0.25rem;
 }
 
 .sidebar-stack {
   display: grid;
-  gap: 0;
+  gap: 0.25rem;
 }
 
 .stat-card {
@@ -683,7 +706,7 @@ function historicCircuitSummary(circuit, {width}) {
 }
 
 .selected-circuit-card {
-  min-height: 266px;
+  min-height: 294px;
 }
 
 .circuit-point:hover {
