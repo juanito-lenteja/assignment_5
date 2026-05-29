@@ -267,6 +267,9 @@ The **number of races** during the 10 year interactive sliding window is depicte
 * ### Data
   * Author: Rohan Rao
   * Source: https://www.kaggle.com/datasets/rohanrao/formula-1-world-championship-1950-2020 
+  <br></br>
+  * Author: jsDelivr team and contributors:
+  * Source: https://cdn.jsdelivr.net/npm/us-atlas@1/us/10m.json
 
 
 ```js
