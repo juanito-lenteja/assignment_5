@@ -200,7 +200,17 @@ const selectedCircuitSummary = selectedCircuit == null
 
 # USA Formula 1 circuits
 
-This map shows the U.S. circuits and .
+---
+
+This **interactive** map shows the USA's Formula 1 circuits.  
+
+All data is filtered by a **10 year interactive sliding window** (otherwise it is specified to be **"historic"**).
+It shows both ***active and inactive*** circuits (with respect to the *10 year interactive sliding window*.)  
+
+Each circle represents a historical F1 US circut. If it is small, faint, and has a dashed contour, it is inactive (otherwise it can be assumed to be active.)  
+The **number of races** during the 10 year interactive sliding window is depicted by the **size of the circle.**
+
+---
 
 <div class="card scrubber-card">
   ${scrubberControl}
@@ -214,10 +224,6 @@ This map shows the U.S. circuits and .
     ${resize((width) => usCircuitMap(usaCircuits, {width}))}  <!-- For window resizing -->
   </div>
   <div class="sidebar-stack">
-    <!-- <div class="card stat-card">
-      <h2>Every U.S. circuit in history</h2>
-      <span class="big">${usaCircuits.length}</span>
-    </div> -->
     <div class="card stat-card">
       <h2>Total U.S. races (<strong>${dateFormat(windowStart)} - <strong>${dateFormat(selectedDate)})</h2>
       <span class="big">${d3.sum(usaCircuits, (d) => d.raceCount)}</span>
@@ -229,8 +235,14 @@ This map shows the U.S. circuits and .
     <div class="card selected-circuit-card">
       <h2>Historic data of selected circuit</h2>
       ${selectedCircuitSummary == null
-        ? html`<p class="muted">Click on a circuit to see historical data</p>`
+        ? html`
+        <p class="muted">Click on a circuit to see historical data (or cycle through the data with Tab and select with Enter/Space)</p>
+        <p class="muted">Click elsewhere to unselect data</p>
+        `
         : resize((width) => historicCircuitSummary(selectedCircuitSummary, {width}))}
+    </div>
+    <div class="card">
+      ${resize((width) => raceCircleLegend({width}))}
     </div>
   </div>
   <br>
@@ -242,6 +254,20 @@ This map shows the U.S. circuits and .
 <div class="card">
   ${resize((width) => Plot.plot(nonInteractivePlot))}
 </div>
+
+---
+
+## References
+
+
+
+```js
+function raceRadiusScale() {
+  return d3.scaleLinear()
+    .domain([0, 1, maxRaceCount ** 2])
+    .range([3.5, 6, 80]);
+}
+```
 
 
 ```js
@@ -270,9 +296,7 @@ function usCircuitMap(data, {width}) {
     .text(`Races starting on ${dateFormat(windowStart)} through ${dateFormat(selectedDate)}`)
 
 
-  const radius = d3.scaleLinear()
-    .domain([0, 1, maxRaceCount ** 2])
-    .range([3, 6, 80]);
+  const radius = raceRadiusScale();
 
   svg.append("g")
     .selectAll("path")
@@ -297,6 +321,7 @@ function usCircuitMap(data, {width}) {
     .attr("stroke-width", 1);
 
   const tooltipText = tooltip.append("text")
+    .attr("class", "tooltip-text")
     .attr("fill", "white")
     .attr("font-size", 12)
     .attr("font-family", "var(--sans-serif)");
@@ -313,14 +338,17 @@ function usCircuitMap(data, {width}) {
       .data(lines)
       .join("tspan")
       .attr("x", 10)
-      .attr("dy", (_, i) => i === 0 ? "1.1em" : "1.25em") // adds "title"
+      .attr("dy", "1.25em")
+      .attr("class", (_, i) => i === 0 ? "title" : null)
       .text((line) => line);
+
 
     const {width: boxWidth, height: boxHeight} = tooltipText.node().getBBox();
     tooltipBox
       .attr("width", boxWidth + 20)
       .attr("height", boxHeight + 12);
 
+    // make toolbox follow the cursor
     const [px, py] = d3.pointer(event, svg.node());
     const tooltipWidth = boxWidth + 20;
     const tooltipHeight = boxHeight + 12;
@@ -348,10 +376,10 @@ function usCircuitMap(data, {width}) {
 
     points.join(
       enter => enter.append("circle")
+        .attr("class", "circuit-point")
         .attr("cx", d => mapProjection(atlasProjection([d.lng, d.lat]))?.[0])
         .attr("cy", d => mapProjection(atlasProjection([d.lng, d.lat]))?.[1])
         .attr("r", d => radius(d.raceCount ** 2))
-        .attr("fill", "#2563eb")
         .attr("stroke", "black")
         .attr("stroke-width", 1.5)
         .attr("cursor", "pointer")
@@ -365,6 +393,14 @@ function usCircuitMap(data, {width}) {
           event.stopPropagation();
           clickedPoint(event, d)
         })
+        .on("keydown", (event, d) => {
+          // if focused is implied
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            clickedPoint(event, d);
+          }
+        })
         .call((enter) => enter.append("title")),
 
       update => update,
@@ -372,7 +408,10 @@ function usCircuitMap(data, {width}) {
       exit => exit.remove()
     )
     .attr("aria-label", pointLabel)
-    .attr("fill-opacity", d => d.raceCount === 0 ? 0.3 : 0.85)
+    .attr("fill", d => selectedCircuitId == d.circuitId 
+          ? "#eb2525" 
+          : "#2563eb")
+    .attr("fill-opacity", d => d.raceCount === 0 ? 0.4 : 0.85)
     .attr("stroke-dasharray", d => d.raceCount === 0 ? "0.5, 1" : "none")
     .select("title")
     .text(pointLabel);
@@ -386,6 +425,67 @@ function usCircuitMap(data, {width}) {
   renderPoints(data);
 
   svg.on("click", (event, d) => clickedPoint(null, null))
+
+  return svg.node();
+}
+```
+
+
+```js
+function raceCircleLegend({width}) {
+  const values = [0, 1, 6, 11];
+  const radius = raceRadiusScale();
+  const items = values.map((value) => ({
+    value,
+    r: radius(value ** 2)
+  }));
+  const maxR = d3.max(items, (d) => d.r) ?? 0;
+  const height = Math.max(90, maxR * 2 + 25);
+  const marginX = Math.max(36, maxR + 20);
+  const xTrans = d3.scalePoint()
+    .domain(values)
+    .range([marginX, Math.max(marginX, width - marginX)])
+    .padding(0.7);
+  const circleY = maxR*1.25;
+
+  const svg = d3.create("svg")
+    .attr("viewBox", [0, 0, width, height])
+    .attr("width", width)
+    .attr("height", height)
+    .attr("style", "max-width: 100%; height: auto; display: block; margin-top: 0.5rem;")
+    .attr("aria-label", "Legend for circuit circle sizes by number of races")
+    .attr("role", "img");
+
+  const legendItem = svg.append("g")
+    .selectAll("g")
+    .data(items)
+    .join("g")
+    .attr("transform", (d) => `translate(${xTrans(d.value) + 20},0)`);
+
+  legendItem.append("circle")
+    .attr("cy", circleY)
+    .attr("r", (d) => d.r)
+    .attr("fill", "#2563eb")
+    .attr("fill-opacity", (d) => d.value === 0 ? 0.4 : 0.85)
+    .attr("stroke", "#788eaa")
+    .attr("stroke-width", 1.5)
+    .attr("stroke-dasharray", (d) => d.value === 0 ? "0.5, 1" : "none");
+
+  legendItem.append("text")
+    .attr("y", circleY + maxR + 14)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 12)
+    .attr("fill", "var(--theme-foreground-muted)")
+    .text((d) => d.value);
+
+  svg.append("text")
+    .attr("x", 40)
+    .attr("y", circleY + circleY/3 )
+    .attr("text-anchor", "middle")
+    .attr("font-size", "14")
+    .attr("font-weight", "600")
+    .attr("fill", "var(--theme-foreground-muted)")
+    .text("Race count:");
 
   return svg.node();
 }
@@ -585,6 +685,26 @@ function historicCircuitSummary(circuit, {width}) {
 .selected-circuit-card {
   min-height: 266px;
 }
+
+.circuit-point:hover {
+  filter: brightness(0.5);
+}
+
+/* Make accessible tab selection invisible to clicks */
+.circuit-point:focus {
+  outline: none;
+}
+
+/* Enhance tabulation selection appereance */
+.circuit-point:focus-visible {
+  outline: 3px solid #f97316;
+  outline-offset: 3px;
+}
+
+.tooltip-text .title {
+  font-weight: 900;
+}
+
 
 @media (max-width: 1100px) {
   .map-layout {
