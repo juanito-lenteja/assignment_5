@@ -685,6 +685,10 @@ function historicCircuitSummary(circuit, {width}) {
   gap: 0.125rem;
 }
 
+.map-column > .card {
+  margin: 0;
+}
+
 .map-card {
   padding-bottom: 0.2rem;
 }
@@ -699,6 +703,10 @@ function historicCircuitSummary(circuit, {width}) {
 .sidebar-stack {
   display: grid;
   gap: 0.25rem;
+}
+
+.sidebar-stack > .card {
+  margin: 0;
 }
 
 .stat-card {
