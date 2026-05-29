@@ -259,8 +259,14 @@ The **number of races** during the 10 year interactive sliding window is depicte
 
 ---
 
-## References
-
+## References  
+* ### Code
+  * Author: Mike Bostock
+  * Source: https://observablehq.com/@d3/walmarts-growth  
+<br></br>
+* ### Data
+  * Author: Rohan Rao
+  * Source: https://www.kaggle.com/datasets/rohanrao/formula-1-world-championship-1950-2020 
 
 
 ```js
