@@ -202,13 +202,15 @@ const selectedCircuitSummary = selectedCircuit == null
 
 ---
 
-This **interactive** map shows the USA's Formula 1 circuits.  
+This **interactive** map shows the **USA's Formula 1 circuits**.  
 
 All data is filtered by a **10 year interactive sliding window** (otherwise it is specified to be **"historic"**).
-It shows both ***active and inactive*** circuits (with respect to the *10 year interactive sliding window*.)  
+It shows both ***active and inactive*** circuits (with respect to the *10 year sliding window*.)  
 
 Each circle represents a historical F1 US circut. If it is small, faint, and has a dashed contour, it is inactive (otherwise it can be assumed to be active.)  
 The **number of races** during the 10 year interactive sliding window is depicted by the **size of the circle.**
+
+Historically, the US has had a *moderate demand for Formula 1*. In the 90s and early 2000s, the American public lost its interest in the sport. In the last decade, however, it has picked up again and it **must continue to increase in popularity** for it **to remain internationally accessible**.
 
 ---
 
@@ -262,14 +264,14 @@ The **number of races** during the 10 year interactive sliding window is depicte
 ## References  
 * ### Code
   * Author: Mike Bostock
-  * Source: https://observablehq.com/@d3/walmarts-growth  
+  * Source: [Walmart's growth](https://observablehq.com/@d3/walmarts-growth)
 <br></br>
 * ### Data
   * Author: Rohan Rao
-  * Source: https://www.kaggle.com/datasets/rohanrao/formula-1-world-championship-1950-2020 
+  * Source: [Formula 1 World Championship (1950 - 2024)](https://www.kaggle.com/datasets/rohanrao/formula-1-world-championship-1950-2020)
   <br></br>
   * Author: jsDelivr team and contributors:
-  * Source: https://cdn.jsdelivr.net/npm/us-atlas@1/us/10m.json
+  * Source: [US Atlas 10m](https://cdn.jsdelivr.net/npm/us-atlas@1/us/10m.json)
 
 
 ```js
