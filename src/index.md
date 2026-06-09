@@ -234,7 +234,10 @@ const selectedCircuitSummary = selectedCircuit == null
 
 ---
 
-Historically, the US has had a *moderate demand for Formula 1*. In the 90s and early 2000s, the American public lost its interest in the sport. In the last decade, however, it has picked up again and it **must continue to increase in popularity** for it **to remain internationally accessible**.
+Historically, the US has had a *moderate demand for Formula 1*. In the 90s and early 2000s, the American public lost its interest in the sport. In the last decade, however, it has picked up again and it **must continue to increase in popularity** for it **to remain internationally accessible**.  
+Given current, unfortunate, geopolitical events, some races in the F1 calendar have been cancelled. The US would make for a great candidate to temporarilly undertake some of the demand for races, as its sheer size, influence and previously shown demand are ideal for the sport.  
+
+Here I show the history of the US's demand for F1.
 <br></br>
 
 ${firstNextButton}
