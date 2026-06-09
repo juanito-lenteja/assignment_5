@@ -21,6 +21,38 @@ const scrubberTimeStep = 300;
 ```
 
 ```js
+function revealAndScrollTo(element) {
+  element?.classList.remove("is-hidden");
+  element?.removeAttribute("aria-hidden");
+
+  requestAnimationFrame(() => {
+    element?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+}
+
+const firstNextButton = html`<button class="next-button" type="button">Next</button>`;
+firstNextButton.addEventListener("click", () => {
+  const explanationContent = document.querySelector(".explanation-content");
+  revealAndScrollTo(explanationContent);
+  firstNextButton.remove();
+});
+```
+
+```js
+const secondNextButton = html`<button class="next-button" type="button">Next</button>`;
+secondNextButton.addEventListener("click", () => {
+  const visualizationContent = document.querySelector(".visualization-content");
+  revealAndScrollTo(visualizationContent);
+  secondNextButton.remove();
+});
+```
+
+
+
+```js
 const selectedCircuitId = Mutable(null);
 
 function clickedPoint(event, d) {
@@ -202,6 +234,14 @@ const selectedCircuitSummary = selectedCircuit == null
 
 ---
 
+Historically, the US has had a *moderate demand for Formula 1*. In the 90s and early 2000s, the American public lost its interest in the sport. In the last decade, however, it has picked up again and it **must continue to increase in popularity** for it **to remain internationally accessible**.
+<br></br>
+
+${firstNextButton}
+
+
+<div class="explanation-content is-hidden" aria-hidden="true">
+
 This **interactive** map shows the **USA's Formula 1 circuits**.  
 
 All data is filtered by a **10 year interactive sliding window** (otherwise it is specified to be **"historic"**).
@@ -210,9 +250,13 @@ It shows both ***active and inactive*** circuits (with respect to the *10 year s
 Each circle represents a historical F1 US circut. If it is small, faint, and has a dashed contour, it is inactive (otherwise it can be assumed to be active.)  
 The **number of races** during the 10 year interactive sliding window is depicted by the **size of the circle.**
 
-Historically, the US has had a *moderate demand for Formula 1*. In the 90s and early 2000s, the American public lost its interest in the sport. In the last decade, however, it has picked up again and it **must continue to increase in popularity** for it **to remain internationally accessible**.
-
 ---
+
+${secondNextButton}
+</div>
+
+
+<div class="visualization-content is-hidden" aria-hidden="true">
 
 <div class="card scrubber-card">
   ${scrubberControl}
@@ -257,6 +301,8 @@ Historically, the US has had a *moderate demand for Formula 1*. In the 90s and e
 
 <div class="card">
   ${resize((width) => Plot.plot(nonInteractivePlot))}
+</div>
+
 </div>
 
 ---
@@ -340,6 +386,8 @@ function usCircuitMap(data, {width}) {
     .attr("font-family", "var(--sans-serif)");
 
   function showTooltip(event, d) {
+    tooltip.raise();
+
     const lines = [
       d.name,
       d.location,
@@ -375,6 +423,10 @@ function usCircuitMap(data, {width}) {
     tooltip.attr("display", "none");
   }
 
+  const isVegasCircuit = (d) => d?.circuitId === 44 || d?.circuitId === 80;
+  const circuitPosition = (d) => mapProjection(atlasProjection([d.lng, d.lat]));
+  const vegasSpread = 10;
+
   function renderPoints(data) {
     const pointData = [...data].sort(
       (a, b) => d3.descending(a.raceCount, b.raceCount)
@@ -390,8 +442,8 @@ function usCircuitMap(data, {width}) {
     points.join(
       enter => enter.append("circle")
         .attr("class", "circuit-point")
-        .attr("cx", d => mapProjection(atlasProjection([d.lng, d.lat]))?.[0])
-        .attr("cy", d => mapProjection(atlasProjection([d.lng, d.lat]))?.[1])
+        .attr("cx", d => circuitPosition(d)?.[0])
+        .attr("cy", d => circuitPosition(d)?.[1])
         .attr("r", d => radius(d.raceCount ** 2))
         .attr("stroke", "black")
         .attr("stroke-width", 1.5)
@@ -436,6 +488,109 @@ function usCircuitMap(data, {width}) {
   }
 
   renderPoints(data);
+
+  // data set to use for vegas circuits spacing
+  const vegasCircuits = data
+    .filter(isVegasCircuit)
+    .map((d) => {
+      const [x, y] = circuitPosition(d) ?? [];
+      return {
+        ...d,
+        x,
+        y,
+        r: radius(d.raceCount ** 2)
+      };
+    })
+    .filter((d) => d.x != null && d.y != null);
+
+  if (vegasCircuits.length > 1) {
+    const largestVegasCircuit = d3.greatest(vegasCircuits, (d) => d.r);
+    const vegasCenter = {
+      x: d3.mean(vegasCircuits, (d) => d.x),
+      y: d3.mean(vegasCircuits, (d) => d.y)
+    };
+    const vegasNeighborhoodRadius = Math.max(36, d3.max(vegasCircuits, (d) => d.r) + vegasSpread + 12);
+
+    const vegasX = (d, expanded = false) => {
+      if (!expanded || !isVegasCircuit(d)) return circuitPosition(d)?.[0];
+      return circuitPosition(d)?.[0] + (d.circuitId === 44 ? -vegasSpread : vegasSpread);
+    };
+
+    const vegasY = (d) => circuitPosition(d)?.[1];
+
+    const label = svg.append("g")
+      .attr("transform", `translate(${largestVegasCircuit.x}, ${largestVegasCircuit.y - largestVegasCircuit.r - 12})`)
+      .attr("pointer-events", "none");
+
+    const labelText = label.append("text")
+      .attr("fill", "white")
+      .attr("font-size", 10)
+      .attr("font-weight", 800)
+      .attr("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .text("+2");
+
+    const {width: labelWidth, height: labelHeight} = labelText.node().getBBox();
+
+    label.insert("rect", "text")
+      .attr("x", -labelWidth / 2 - 8)
+      .attr("y", -labelHeight / 2 - 6)
+      .attr("width", labelWidth + 16)
+      .attr("height", labelHeight + 12)
+      .attr("fill", "black");
+
+    const labelX = (expanded = false) => largestVegasCircuit.x + (expanded
+      ? (largestVegasCircuit.circuitId === 44 ? -vegasSpread : vegasSpread)
+      : 0);
+
+    const labelY = () => largestVegasCircuit.y - largestVegasCircuit.r - 12;
+
+    function setVegasExpanded(expanded) {
+      pointsG.selectAll("circle")
+        .filter(isVegasCircuit)
+        .transition()
+        .duration(180)
+        .ease(d3.easeCubicOut)
+        .attr("cx", (d) => vegasX(d, expanded))
+        .attr("cy", vegasY);
+
+      label.transition()
+        .duration(180)
+        .ease(d3.easeCubicOut)
+        .attr("transform", `translate(${labelX(expanded)}, ${labelY()})`)
+        .attr("opacity", expanded ? 0 : 1);
+    }
+
+    pointsG.insert("circle", ".circuit-point")
+      .attr("class", "vegas-neighborhood")
+      .attr("cx", vegasCenter.x)
+      .attr("cy", vegasCenter.y)
+      .attr("r", vegasNeighborhoodRadius)
+      .attr("fill", "transparent")
+      .attr("pointer-events", "all")
+      .on("mouseenter", () => setVegasExpanded(true))
+      .on("mousemove", () => setVegasExpanded(true))
+      .on("mouseleave", () => setVegasExpanded(false));
+
+    pointsG.selectAll("circle")
+      .filter(isVegasCircuit)
+      .on("mouseenter", (event, d) => {
+        setVegasExpanded(true);
+        showTooltip(event, d);
+      })
+      .on("mousemove", (event, d) => {
+        setVegasExpanded(true);
+        showTooltip(event, d);
+      })
+      .on("mouseleave", (event) => {
+        const [px, py] = d3.pointer(event, svg.node());
+        const distanceFromVegas = Math.hypot(px - vegasCenter.x, py - vegasCenter.y);
+        if (distanceFromVegas > vegasNeighborhoodRadius) setVegasExpanded(false);
+        hideTooltip();
+      });
+
+    tooltip.raise();
+  }
 
   svg.on("click", (event, d) => clickedPoint(null, null))
 
@@ -635,6 +790,36 @@ function historicCircuitSummary(circuit, {width}) {
 
 
 <style>
+.next-button {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.8rem 1.4rem;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.3);
+}
+
+.next-button:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.visualization-content.is-hidden {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.explanation-content.is-hidden {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .scrubber-control {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
